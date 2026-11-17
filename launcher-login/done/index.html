@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Signing in - Sleepy Hallows</title>
+<meta name="description" content="Completing your Sleepy Hallows sign-in.">
+<style>
+  :root { color-scheme: dark; --bg:#0c0b10; --panel:#16141d; --ink:#e9e6f0; --muted:#a39fb4; --accent:#8b6fc7; --line:#2a2733; --ok:#5ec27a; --bad:#e06b6b; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.6 system-ui,Segoe UI,Roboto,sans-serif;
+         display:flex; min-height:100vh; align-items:center; justify-content:center; padding:24px; }
+  main { max-width:460px; width:100%; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px; text-align:center; }
+  h1 { font-size:1.4rem; margin:.2em 0 .6rem; }
+  p { color:var(--muted); }
+  .ok { color:var(--ok); } .bad { color:var(--bad); }
+  a.btn { display:inline-block; margin-top:1.2rem; background:var(--accent); color:#fff; text-decoration:none;
+          padding:10px 18px; border-radius:9px; font-weight:600; }
+  .spin { width:34px; height:34px; border:3px solid var(--line); border-top-color:var(--accent); border-radius:50%;
+          margin:8px auto 14px; animation:s 1s linear infinite; } @keyframes s { to { transform:rotate(360deg); } }
+</style>
+</head>
+<body>
+<main>
+  <div class="card">
+    <div class="spin" id="spin"></div>
+    <h1 id="title">Finishing sign-in...</h1>
+    <p id="msg">One moment.</p>
+    <div id="extra"></div>
+  </div>
+</main>
+<script type="module">
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.47.10/+esm";
+const SUPABASE_URL = "https://cltsqinfyjdxlfdxhuts.supabase.co";
+const SUPABASE_KEY = "sb_publishable_mDRR86y-GXMsXDm64TvKaw_7OxXytaN";
+const FN = SUPABASE_URL + "/functions/v1/launcher";
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { flowType: "pkce", persistSession: true } });
+const $ = (id) => document.getElementById(id);
+
+function done(ok, title, msg, link) {
+  $("spin").style.display = "none";
+  $("title").textContent = title;
+  $("title").className = ok ? "ok" : "bad";
+  $("msg").textContent = msg;
+  if (link) $("extra").innerHTML = '<a class="btn" href="' + link + '">Join the Discord</a>';
+}
+
+async function finish() {
+  // supabase-js completes the PKCE exchange from the URL on load; get the session + Discord provider token
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) { done(false, "Sign-in didn't complete", "Please start again from the launcher."); return; }
+  const sessionId = (() => { try { return sessionStorage.getItem("sh_session"); } catch { return null; } })();
+  if (!sessionId) { done(false, "Sign-in link lost", "Open the sign-in page from the launcher again."); return; }
+
+  const r = await fetch(FN + "/approve", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", apikey: SUPABASE_KEY, Authorization: "Bearer " + session.access_token },
+    body: JSON.stringify({ sessionId, providerToken: session.provider_token }),
+  });
+  const data = await r.json().catch(() => ({}));
+  // sign the browser out either way - the launcher, not the browser, holds the session
+  await supabase.auth.signOut().catch(() => {});
+  try { sessionStorage.removeItem("sh_session"); } catch {}
+
+  if (r.ok && data.result === "approved") done(true, "Done!", "Return to the Sleepy Hallows launcher - it will start the game.");
+  else if (data.result === "not_member" || data.error === "not_member") done(false, "Not a member yet", data.message || "You are not in the Sleepy Hallows Discord. Join it first.", data.link);
+  else if (data.result === "banned" || data.error === "banned") done(false, "Account banned", data.message || "This account is banned from Sleepy Hallows.");
+  else if (data.result === "vpn") done(false, "Connection not allowed", data.message || "Sleepy Hallows does not allow VPNs, proxies or Tor. Turn it off and try again.");
+  else done(false, "Sign-in didn't complete", data.message || "Please start again from the launcher.");
+}
+
+finish().catch((e) => done(false, "Something went wrong", String(e && e.message || e)));
+</script>
+</body>
+</html>
