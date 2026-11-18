@@ -2,78 +2,37 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Sign in - Sleepy Hallows</title>
-<meta name="description" content="Sign in to Sleepy Hallows with Discord.">
 <style>
-  :root { color-scheme: dark; --bg:#0c0b10; --panel:#16141d; --ink:#e9e6f0; --muted:#a39fb4; --accent:#5865F2; --line:#2a2733; --ok:#5ec27a; --bad:#e06b6b; }
-  * { box-sizing:border-box; }
-  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.6 system-ui,Segoe UI,Roboto,sans-serif;
-         display:flex; min-height:100vh; align-items:center; justify-content:center; padding:24px; }
-  main { max-width:460px; width:100%; }
-  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:26px; text-align:center; }
-  h1 { font-size:1.5rem; margin:.1em 0 1rem; }
-  p { color:var(--muted); margin:.4em 0; }
-  .code { font:700 1.9rem/1.2 ui-monospace,Consolas,monospace; letter-spacing:.18em; background:#0f0e15;
-          border:1px solid var(--line); border-radius:10px; padding:14px; margin:1rem 0; color:var(--ink); }
-  .hint { font-size:.9rem; }
-  button { background:var(--accent); color:#fff; border:0; border-radius:9px; padding:12px 20px; font:inherit;
-           font-weight:600; cursor:pointer; width:100%; margin-top:1rem; }
-  button:disabled { opacity:.5; cursor:default; }
-  .msg { margin-top:1rem; font-size:.92rem; }
-  .bad { color:var(--bad); } .ok { color:var(--ok); }
+  body { margin:0; min-height:100vh; display:grid; place-items:center; background:#0c0b10; color:#e9e6f0;
+         font:16px/1.6 system-ui,Segoe UI,Roboto,sans-serif; }
+  main { text-align:center; padding:24px; max-width:460px; }
+  a { color:#8fa0ff; }
 </style>
 </head>
 <body>
 <main>
-  <div class="card">
-    <h1>Sign in to Sleepy Hallows</h1>
-    <p>Your launcher shows a code. Continue only if it matches the one below.</p>
-    <div class="code" id="code">&middot;&middot;&middot;&middot;-&middot;&middot;&middot;&middot;</div>
-    <p class="hint">Signing in checks your Discord membership and links your game account.</p>
-    <button id="login" disabled>Log in with Discord</button>
-    <div class="msg" id="msg"></div>
-  </div>
+  <h1>Sleepy Hallows sign-in has moved</h1>
+  <p>Taking you to <b>sleepyhallows.com</b>...</p>
+  <p id="manual">If nothing happens, open the sign-in page from your launcher again.</p>
 </main>
-<script type="module">
-import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.47.10/+esm";
-const SUPABASE_URL = "https://cltsqinfyjdxlfdxhuts.supabase.co";
-const SUPABASE_KEY = "sb_publishable_mDRR86y-GXMsXDm64TvKaw_7OxXytaN";
-const FN = SUPABASE_URL + "/functions/v1/launcher";
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { flowType: "pkce", persistSession: true } });
-
-const $ = (id) => document.getElementById(id);
-const session = new URLSearchParams(location.search).get("session");
-if (session) try { sessionStorage.setItem("sh_session", session); } catch {}
-
-async function call(route, body, token) {
-  const headers = { "Content-Type": "application/json", apikey: SUPABASE_KEY, Authorization: "Bearer " + (token || SUPABASE_KEY) };
-  const r = await fetch(FN + "/" + route, { method: "POST", headers, body: JSON.stringify(body) });
-  return { ok: r.ok, status: r.status, data: await r.json().catch(() => ({})) };
-}
-
-async function showCode() {
-  if (!session) { $("msg").innerHTML = '<span class="bad">No sign-in code. Open this page from the launcher.</span>'; return; }
-  const r = await call("session", { sessionId: session });
-  if (r.ok && r.data.userCode) {
-    $("code").textContent = r.data.userCode;
-    if (r.data.status === "pending") $("login").disabled = false;
-    else $("msg").innerHTML = '<span class="bad">This sign-in has already been used or expired. Start again from the launcher.</span>';
-  } else {
-    $("msg").innerHTML = '<span class="bad">This sign-in link is not valid. Press Log in with Discord in the launcher again.</span>';
-  }
-}
-
-$("login").addEventListener("click", async () => {
-  $("login").disabled = true;
-  const { error } = await supabase.auth.signInWithOAuth({
-    provider: "discord",
-    options: { scopes: "identify guilds.members.read", redirectTo: location.origin + "/launcher-login/done" },
-  });
-  if (error) { $("msg").innerHTML = '<span class="bad">Could not start Discord sign-in: ' + error.message + '</span>'; $("login").disabled = false; }
-});
-
-showCode();
+<script>
+  // 2026-11-19: the sign-in page now lives only on sleepyhallows.com (strict security headers there). Launchers built
+  // before that open this address, so it forwards the launcher's sign-in code to the same page there. Only the
+  // "session" value is passed on, and only if it has the shape the launcher creates.
+  (function () {
+    var target = "https://sleepyhallows.com/launcher-login/";
+    var s = new URLSearchParams(location.search).get("session");
+    if (s && /^[A-Za-z0-9_-]{22}$/.test(s)) target += "?session=" + encodeURIComponent(s);
+    var a = document.createElement("a");
+    a.href = target;
+    a.textContent = "Continue to the sign-in page";
+    document.getElementById("manual").replaceChildren(a);
+    location.replace(target);
+  })();
 </script>
 </body>
 </html>
